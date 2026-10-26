@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mi asistente</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Asistente">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f5f1;--sf:#fff;--tx:#1c1c1a;--mu:#6b6a64;--ac:#1f6f5c;--ac-tx:#fff;--bd:#e2e0d8;--me:#e4efe9}
+@media (prefers-color-scheme:dark){:root{--bg:#161615;--sf:#222220;--tx:#ecebe6;--mu:#98978f;--ac:#4fb59a;--ac-tx:#0e1f1a;--bd:#33332f;--me:#23382f;color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{padding:12px 14px 8px;border-bottom:1px solid var(--bd);background:var(--sf)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{font-size:17px;margin:0;font-weight:650}
+nav{display:flex;gap:2px}
+nav button{background:none;border:0;color:var(--mu);font:inherit;font-size:14px;padding:6px 8px;border-radius:8px}
+nav button.on{color:var(--tx);background:var(--bg);font-weight:600}
+.modes{display:flex;gap:6px;overflow-x:auto;padding-top:8px;scrollbar-width:none}
+.modes button{flex:none;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px}
+.modes button.on{background:var(--ac);color:var(--ac-tx);border-color:var(--ac)}
+.modes .del{margin-left:auto;color:var(--mu)}
+#chat,#panel,#set{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.m{max-width:88%;padding:10px 13px;border-radius:14px;white-space:pre-wrap;word-wrap:break-word;border:1px solid var(--bd);background:var(--sf)}
+.m.me{align-self:flex-end;background:var(--me);border-color:transparent}
+.m.err{color:#b3261e}
+.empty{margin:auto;text-align:center;color:var(--mu);padding:20px;max-width:300px}
+.mu{font-size:14px;color:var(--mu)}
+form{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--bd);background:var(--sf)}
+textarea,input{border:1px solid var(--bd);border-radius:12px;padding:10px 12px;font:inherit;background:var(--bg);color:var(--tx);width:100%}
+#q{flex:1;resize:none;max-height:140px}
+.btn{border:0;border-radius:12px;background:var(--ac);color:var(--ac-tx);padding:12px 16px;font:inherit;font-weight:600}
+.btn:disabled{opacity:.5}
+.btn.alt{background:var(--sf);color:var(--tx);border:1px solid var(--bd)}
+#go.on{background:#b3261e;color:#fff}
+.card{border:1px solid var(--bd);background:var(--sf);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.ct{font-weight:600;font-size:14px}
+.cp,.cs{font-size:15px;white-space:pre-wrap;word-wrap:break-word}
+.cs{background:var(--me);border-radius:10px;padding:8px 10px}
+.cb{display:flex;gap:6px;flex-wrap:wrap}
+.cb button{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>Mi asistente</h1>
+    <nav><button data-v="chat">Chat</button><button data-v="panel">Grabar</button><button data-v="set">Ajustes</button></nav>
+  </div>
+  <div class="modes" id="modes"></div>
+</header>
+<div id="chat"></div>
+<section id="panel" hidden>
+  <button id="go" class="btn" type="button">Empezar a grabar</button>
+  <div id="st" class="mu">Graba una clase o una charla: se transcribe en directo y se guarda para resumirla después.</div>
+  <div id="live" class="m" hidden></div>
+  <textarea id="man" rows="3" placeholder="O pega aquí un texto para guardarlo…"></textarea>
+  <button id="addman" class="btn alt" type="button">Guardar este texto</button>
+  <div id="list" style="display:flex;flex-direction:column;gap:10px"></div>
+</section>
+<section id="set" hidden>
+  <label for="key"><b>Clave de la API de Anthropic</b></label>
+  <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <button id="savekey" class="btn" type="button">Guardar clave</button>
+  <div id="keyst" class="mu"></div>
+  <p class="mu">La clave se guarda solo en este dispositivo y solo se envía a Anthropic. Créala en <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Cada mensaje tiene un coste pequeño, que se descuenta de tu saldo de la API. Si compartes tu móvil o el ordenador, quita la clave al terminar.</p>
+  <button id="delkey" class="btn alt" type="button">Quitar clave</button>
+</section>
+<form id="f">
+  <textarea id="q" rows="1" placeholder="Escribe aquí…" enterkeyhint="send"></textarea>
+  <button id="send" class="btn" type="submit">Enviar</button>
+</form>
+<script>
+const MODEL = "claude-sonnet-5-5";
+const MODES = {
+  general:{n:"General",h:"Pregúntame lo que quieras.",s:"Eres un asistente personal útil y directo."},
+  estudio:{n:"Estudio",h:"Te explico temas y te preparo preguntas de repaso.",s:"Eres un tutor paciente para un estudiante de Desarrollo de Aplicaciones Multiplataforma. Explica paso a paso con ejemplos sencillos y, si ayuda, termina con una pregunta de repaso."},
+  codigo:{n:"Código",h:"Dudas de programación, errores y ejemplos.",s:"Eres un mentor de programación para un principiante. Da código corto y completo, explica cada parte en pocas líneas y señala los errores habituales."},
+  redactar:{n:"Redactar",h:"Correos, trabajos y mensajes con tono natural.",s:"Ayudas a redactar textos en español con un tono natural y humano, sin frases hechas ni adornos. Entrega el texto listo para copiar."},
+  ideas:{n:"Ideas",h:"Para planear, decidir u organizarte.",s:"Ayudas a organizar ideas, planes y decisiones. Propón pocas opciones claras y recomienda una."}
+};
+const BASE = "Responde siempre en español, de forma breve y clara. No uses markdown: nada de asteriscos, almohadillas ni tablas. Si necesitas listas, usa líneas con guion.";
+const $ = id => document.getElementById(id);
+const ld = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+const sv = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+let KEY = ld("a_key", ""), hist = ld("a_hist", {}), mode = ld("a_mode", "general"), recs = ld("a_recs", []), busy = false;
+if (!MODES[mode]) mode = "general";
+const fmt = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+const now = () => new Date().toLocaleString("es-ES", {dateStyle: "medium", timeStyle: "short"});
+
+function show(v) {
+  ["chat", "panel", "set"].forEach(x => $(x).hidden = x !== v);
+  $("f").hidden = v !== "chat"; $("modes").hidden = v !== "chat";
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  if (v === "panel") drawList();
+  if (v === "set") { $("key").value = KEY; $("keyst").textContent = KEY ? "Clave guardada en este dispositivo." : "Aún no hay clave."; }
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.v));
+
+async function ask(msgs, system, onText) {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {"content-type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true"},
+    body: JSON.stringify({model: MODEL, max_tokens: 1500, system: system, messages: msgs, stream: true})
+  });
+  if (!r.ok) {
+    let m = ""; try { m = (await r.json()).error.message; } catch (e) {}
+    const er = new Error(m); er.status = r.status; throw er;
+  }
+  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "", out = "";
+  for (;;) {
+    const {done, value} = await rd.read(); if (done) break;
+    buf += dec.decode(value, {stream: true});
+    const lines = buf.split("\n"); buf = lines.pop();
+    for (const l of lines) {
+      if (!l.startsWith("data: ")) continue;
+      try { const j = JSON.parse(l.slice(6)); if (j.type === "content_block_delta" && j.delta && j.delta.text) { out += j.delta.text; if (onText) onText(out); } } catch (e) {}
+    }
+  }
+  return out;
+}
+const errText = e => e.status === 401 ? "La clave no es válida. Revísala en Ajustes."
+  : e.status === 429 ? "Demasiadas peticiones, espera un momento."
+  : e.status === 400 && /credit|balance/i.test(e.message || "") ? "No queda saldo en tu cuenta de la API."
+  : "No he podido responder. Comprueba la conexión e inténtalo otra vez.";
+
+function bubble(role, text) {
+  const d = document.createElement("div");
+  d.className = "m" + (role === "user" ? " me" : "");
+  d.textContent = text; $("chat").appendChild(d);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  return d;
+}
+function render() {
+  $("modes").innerHTML = "";
+  for (const k in MODES) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = MODES[k].n; b.className = k === mode ? "on" : "";
+    b.onclick = () => { mode = k; sv("a_mode", mode); render(); };
+    $("modes").appendChild(b);
+  }
+  const d = document.createElement("button");
+  d.type = "button"; d.className = "del"; d.textContent = "Borrar chat";
+  d.onclick = () => { hist[mode] = []; sv("a_hist", hist); render(); };
+  $("modes").appendChild(d);
+  $("chat").innerHTML = "";
+  const h = hist[mode] || [];
+  if (!h.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = MODES[mode].h; $("chat").appendChild(e); }
+  h.forEach(m => bubble(m.role, m.content));
+}
+$("q").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+
+$("f").onsubmit = async ev => {
+  ev.preventDefault();
+  const text = $("q").value.trim();
+  if (!text || busy) return;
+  if (!KEY) { show("set"); return; }
+  busy = true; $("send").disabled = true;
+  $("q").value = ""; $("q").style.height = "auto";
+  const h = hist[mode] = hist[mode] || [];
+  if (!h.length) $("chat").innerHTML = "";
+  h.push({role: "user", content: text});
+  bubble("user", text);
+  const out = bubble("assistant", "…");
+  const msgs = h.slice(-19).map(m => ({role: m.role, content: m.content}));
+  while (msgs[0].role !== "user") msgs.shift();
+  try {
+    const r = await ask(msgs, MODES[mode].s + " " + BASE, t => { out.textContent = t; $("chat").scrollTop = $("chat").scrollHeight; });
+    out.textContent = r; h.push({role: "assistant", content: r});
+  } catch (e) { h.pop(); out.classList.add("err"); out.textContent = errText(e); }
+  sv("a_hist", hist); busy = false; $("send").disabled = false;
+};
+
+$("savekey").onclick = () => { KEY = $("key").value.trim(); sv("a_key", KEY); $("keyst").textContent = KEY ? "Clave guardada." : "Aún no hay clave."; if (KEY) setTimeout(() => show("chat"), 600); };
+$("delkey").onclick = () => { KEY = ""; sv("a_key", ""); $("key").value = ""; $("keyst").textContent = "Clave eliminada de este dispositivo."; };
+
+/* Grabaciones */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let sr = null, going = false, cur = "", t0 = 0, tick = null;
+$("go").onclick = () => { going ? stopRec() : startRec(); };
+
+function startRec() {
+  if (!SR) { $("st").textContent = "Este navegador no permite transcribir voz. Prueba con Chrome, Edge o Safari."; return; }
+  sr = new SR(); sr.lang = "es-ES"; sr.continuous = true; sr.interimResults = true;
+  let fin = ""; cur = "";
+  sr.onresult = e => {
+    let it = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) fin += r[0].transcript + " "; else it += r[0].transcript;
+    }
+    cur = fin + it; $("live").textContent = cur;
+  };
+  sr.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      going = false; clearInterval(tick); $("go").classList.remove("on"); $("go").textContent = "Empezar a grabar";
+      $("st").textContent = "No tengo permiso para usar el micrófono. Actívalo en los permisos del navegador para esta página.";
+    } else if (e.error !== "no-speech" && e.error !== "aborted") $("st").textContent = "Error de grabación: " + e.error;
+  };
+  sr.onend = () => { if (going) { try { sr.start(); } catch (e) {} } };
+  going = true; t0 = Date.now();
+  $("live").hidden = false; $("live").textContent = "Escuchando…";
+  $("st").textContent = "Grabando. Pulsa de nuevo para terminar y guardar.";
+  $("go").classList.add("on"); $("go").textContent = "Detener · 0:00";
+  tick = setInterval(() => { $("go").textContent = "Detener · " + fmt(Math.round((Date.now() - t0) / 1000)); }, 1000);
+  try { sr.start(); } catch (e) {}
+}
+function stopRec() {
+  going = false; clearInterval(tick);
+  try { sr.stop(); } catch (e) {}
+  $("go").classList.remove("on"); $("go").textContent = "Empezar a grabar";
+  const text = cur.trim();
+  if (text) { recs.unshift({id: Date.now(), t: now(), d: Math.round((Date.now() - t0) / 1000), text: text}); sv("a_recs", recs); $("st").textContent = "Grabación guardada."; }
+  else $("st").textContent = "No he captado nada de voz.";
+  $("live").hidden = true; drawList();
+}
+$("addman").onclick = () => {
+  const text = $("man").value.trim(); if (!text) return;
+  recs.unshift({id: Date.now(), t: now(), d: 0, text: text}); sv("a_recs", recs);
+  $("man").value = ""; $("st").textContent = "Guardado."; drawList();
+};
+function dl(name, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type: "text/plain"})); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function drawList() {
+  const L = $("list"); L.innerHTML = "";
+  if (!recs.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "Aún no hay grabaciones."; L.appendChild(e); return; }
+  recs.forEach(r => {
+    const c = document.createElement("div"); c.className = "card";
+    const h = document.createElement("div"); h.className = "ct"; h.textContent = r.t + (r.d ? " · " + fmt(r.d) : "");
+    const p = document.createElement("div"); p.className = "cp";
+    const short = r.text.length > 160 ? r.text.slice(0, 160) + "…" : r.text;
+    let full = false; p.textContent = short;
+    const s = document.createElement("div"); s.className = "cs"; s.textContent = r.sum || ""; s.hidden = !r.sum;
+    const b = document.createElement("div"); b.className = "cb";
+    const mk = (label, fn) => { const x = document.createElement("button"); x.type = "button"; x.textContent = label; x.onclick = fn; b.appendChild(x); return x; };
+    mk("Resumir", async () => {
+      if (!KEY) { show("set"); return; }
+      s.hidden = false; s.textContent = "Resumiendo…";
+      try {
+        const x = await ask([{role: "user", content: "Resume esta conversación grabada y transcrita automáticamente, así que puede tener errores. Da los puntos principales y, si los hay, los temas pendientes.\n\n" + r.text}], "Respondes en español, breve, sin markdown; si necesitas lista, usa guiones.");
+        r.sum = x; s.textContent = x; sv("a_recs", recs);
+      } catch (e) { s.textContent = errText(e); }
+    });
+    const ver = mk("Ver todo", () => { full = !full; p.textContent = full ? r.text : short; ver.textContent = full ? "Ocultar" : "Ver todo"; });
+    mk("Descargar", () => dl("conversacion-" + r.id + ".txt", r.t + "\n\n" + r.text + (r.sum ? "\n\nResumen:\n" + r.sum : "")));
+    mk("Borrar", () => { recs = recs.filter(x => x.id !== r.id); sv("a_recs", recs); drawList(); });
+    c.append(h, p, s, b); L.appendChild(c);
+  });
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+render(); show(KEY ? "chat" : "set");
+</script>
+</body>
+</html>
